@@ -97,6 +97,7 @@ import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.SwingUtil;
 import net.runelite.client.util.Text;
+import net.runelite.client.ui.components.slider.Slider;
 
 @Slf4j
 class ConfigPanel extends PluginPanel
@@ -359,20 +360,49 @@ class ConfigPanel extends PluginPanel
 				// Config may previously have been out of range
 				value = Ints.constrainToRange(value, min, max);
 
+//				SpinnerModel model = new SpinnerNumberModel(value, min, max, 1);
+//				JSpinner spinner = new JSpinner(model);
+//				Component editor = spinner.getEditor();
+//				JFormattedTextField spinnerTextField = ((JSpinner.DefaultEditor) editor).getTextField();
+//				spinnerTextField.setColumns(SPINNER_FIELD_WIDTH);
+//				spinner.addChangeListener(ce -> changeConfiguration(spinner, cd, cid));
+
+//				Units units = cid.getUnits();
+//				if (units != null)
+//				{
+//					spinnerTextField.setFormatterFactory(new UnitFormatterFactory(units));
+//				}
+//
+//				item.add(spinner, BorderLayout.EAST);
 				SpinnerModel model = new SpinnerNumberModel(value, min, max, 1);
-				JSpinner spinner = new JSpinner(model);
-				Component editor = spinner.getEditor();
-				JFormattedTextField spinnerTextField = ((JSpinner.DefaultEditor) editor).getTextField();
-				spinnerTextField.setColumns(SPINNER_FIELD_WIDTH);
-				spinner.addChangeListener(ce -> changeConfiguration(spinner, cd, cid));
-
-				Units units = cid.getUnits();
-				if (units != null)
+				if (range != null && range.slider())
 				{
-					spinnerTextField.setFormatterFactory(new UnitFormatterFactory(units));
-				}
+					Slider slider = new Slider(value, min, max, range.wrapAround());
+					slider.addUpdateListener(newValue ->
+							configManager.setConfiguration(cd.getGroup().value(), cid.getItem().keyName(), newValue));
 
-				item.add(spinner, BorderLayout.EAST);
+					Units units = cid.getUnits();
+					if (units != null)
+						slider.getInputTextField().setFormatterFactory(new UnitFormatterFactory(units));
+
+					item.add(slider, BorderLayout.SOUTH);
+					item.add(slider.getInputTextField(), BorderLayout.EAST);
+				}
+				else
+				{
+					JSpinner spinner = new JSpinner(model);
+					Component editor = spinner.getEditor();
+					JFormattedTextField spinnerTextField = ((JSpinner.DefaultEditor) editor).getTextField();
+					spinnerTextField.setColumns(SPINNER_FIELD_WIDTH);
+					spinner.addChangeListener(ce -> changeConfiguration(spinner, cd, cid));
+
+					Units units = cid.getUnits();
+					if (units != null)
+					{
+						spinnerTextField.setFormatterFactory(new UnitFormatterFactory(units));
+					}
+					item.add(spinner, BorderLayout.EAST);
+				}
 			}
 
 			else if (cid.getType() == double.class)

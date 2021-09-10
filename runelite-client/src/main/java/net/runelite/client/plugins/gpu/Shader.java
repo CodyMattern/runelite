@@ -57,6 +57,11 @@ public class Shader
 
 	public int compile(GL4 gl, Template template) throws ShaderException
 	{
+		return compile(gl, template, true);
+	}
+
+	public int compile(GL4 gl, Template template, boolean validate) throws ShaderException
+	{
 		int program = gl.glCreateProgram();
 		int[] shaders = new int[units.size()];
 		int i = 0;
@@ -73,6 +78,11 @@ public class Shader
 				}
 
 				String source = template.load(unit.filename);
+				// TODO: remove unnecessary debug stuff
+				String[] lines = source.split("\n");
+				for (int j = 0; j < lines.length; j++)
+					lines[j] = (j + 1) + ": " + lines[j];
+				System.out.println(String.join("\n", lines));
 				gl.glShaderSource(shader, 1, new String[]{source}, null);
 				gl.glCompileShader(shader);
 
@@ -94,12 +104,8 @@ public class Shader
 				throw new ShaderException(err);
 			}
 
-			gl.glValidateProgram(program);
-
-			if (GLUtil.glGetProgram(gl, program, gl.GL_VALIDATE_STATUS) == gl.GL_FALSE)
-			{
-				String err = GLUtil.glGetProgramInfoLog(gl, program);
-				throw new ShaderException(err);
+			if(validate) {
+				validate(gl, program);
 			}
 
 			ok = true;
@@ -120,5 +126,16 @@ public class Shader
 		}
 
 		return program;
+	}
+
+	public static void validate(GL4 gl, int program) throws ShaderException
+	{
+		gl.glValidateProgram(program);
+
+		if (GLUtil.glGetProgram(gl, program, gl.GL_VALIDATE_STATUS) == gl.GL_FALSE)
+		{
+			String err = GLUtil.glGetProgramInfoLog(gl, program);
+			throw new ShaderException(err);
+		}
 	}
 }

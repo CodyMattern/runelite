@@ -22,27 +22,52 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package net.runelite.client.config;
+#version 330
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+uniform sampler2DArray textures;
+uniform vec2 textureOffsets[128];
+uniform float brightness;
+uniform float smoothBanding;
+uniform vec4 fogColor;
+uniform int colorBlindMode;
+uniform float textureLightMode;
 
-/**
- * Used with ConfigItem, describes valid int range for a config item.
- */
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.METHOD)
-@Documented
-public @interface Range
-{
-	int min() default 0;
+in vec4 Color;
+noperspective centroid in float fHsl;
+flat in int textureId;
+in vec2 fUv;
+in float fogAmount;
 
-	int max() default Integer.MAX_VALUE;
+out vec4 FragColor;
 
-	boolean slider() default false;
+#include hsl_to_rgb.glsl
+#include colorblind.glsl
 
-	boolean wrapAround() default false;
+void main() {
+  vec4 c;
+
+  if (textureId > 0) {
+    int textureIdx = textureId - 1;
+
+    vec2 animatedUv = fUv + textureOffsets[textureIdx];
+
+    vec4 textureColor = texture(textures, vec3(animatedUv, float(textureIdx)));
+    vec4 textureColorBrightness = pow(textureColor, vec4(brightness, brightness, brightness, 1.0f));
+
+    // textured triangles hsl is a 7 bit lightness 2-126
+    float light = fHsl / 127.f;
+    vec3 mul = (1.f - textureLightMode) * vec3(light) + textureLightMode * Color.rgb;
+    c = textureColorBrightness * vec4(mul, 1.f);
+  } else {
+    // pick interpolated hsl or rgb depending on smooth banding setting
+    vec3 rgb = hslToRgb(int(fHsl)) * smoothBanding + Color.rgb * (1.f - smoothBanding);
+    c = vec4(rgb, Color.a);
+  }
+
+  if (colorBlindMode > 0) {
+    c.rgb = colorblind(colorBlindMode, c.rgb);
+  }
+
+  vec3 mixedColor = mix(c.rgb, fogColor.rgb, fogAmount);
+  FragColor = vec4(mixedColor, c.a);
 }

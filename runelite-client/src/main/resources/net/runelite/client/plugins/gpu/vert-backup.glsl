@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2018, Adam <Adam@sigterm.info>
- * Copyright (c) 2021, Hooder <https://github.com/aHooder>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,8 +32,6 @@
 #define FOG_CORNER_ROUNDING 1.5
 #define FOG_CORNER_ROUNDING_SQUARED FOG_CORNER_ROUNDING * FOG_CORNER_ROUNDING
 
-#include SHADOW_CONSTANTS
-
 layout (location = 0) in ivec4 VertexPosition;
 layout (location = 1) in vec4 uv;
 
@@ -50,27 +47,17 @@ layout(std140) uniform uniforms {
   ivec2 sinCosTable[2048];
 };
 
-uniform int renderPass;
-
 uniform float brightness;
 uniform int useFog;
 uniform int fogDepth;
 uniform int drawDistance;
 uniform mat4 projectionMatrix;
-uniform mat4 shadowProjectionMatrix;
 
-out VertexData {
-  vec4 Color;
-  noperspective centroid float fHsl;
-  flat int textureId;
-  vec2 fUv;
-  float fogAmount;
-
-  #if SHADOWS_ENABLED
-  ivec3 vertex;
-  vec4 lightSpacePosition;
-  #endif
-};
+out vec4 Color;
+noperspective centroid out float fHsl;
+flat out int textureId;
+out vec2 fUv;
+out float fogAmount;
 
 #include hsl_to_rgb.glsl
 
@@ -80,40 +67,18 @@ float fogFactorLinear(const float dist, const float start, const float end) {
 
 void main()
 {
-  #if !SHADOWS_ENABLED
-  ivec3 vertex;
-  #endif
-
-  vertex = VertexPosition.xyz;
+  ivec3 vertex = VertexPosition.xyz;
   int ahsl = VertexPosition.w;
+  int hsl = ahsl & 0xffff;
   float a = float(ahsl >> 24 & 0xff) / 255.f;
 
-  textureId = int(uv.x);
-  fUv = uv.yz;
-
-  vec4 position = vec4(vertex, 1.f);
-
-  if (renderPass == 1) { // SHADOW_MAP_OPAQUE
-    // We only need alpha, texture and coordinate information for the shadow map
-    Color = vec4(vec3(0), 1.f - a);
-    gl_Position = shadowProjectionMatrix * position;
-    return;
-  }
-
-  int hsl = ahsl & 0xffff;
   vec3 rgb = hslToRgb(hsl);
+
+  gl_Position = projectionMatrix * vec4(vertex, 1.f);
   Color = vec4(rgb, 1.f - a);
   fHsl = float(hsl);
-
-  if (renderPass == 2) { // SHADOW_MAP_TRANSLUCENT
-    gl_Position = shadowProjectionMatrix * position;
-    return;
-  }
-
-  gl_Position = projectionMatrix * position;
-  #if SHADOWS_ENABLED
-  lightSpacePosition = shadowProjectionMatrix * position;
-  #endif
+  textureId = int(uv.x);
+  fUv = uv.yz;
 
   int fogWest = max(FOG_SCENE_EDGE_MIN, cameraX - drawDistance);
   int fogEast = min(FOG_SCENE_EDGE_MAX, cameraX + drawDistance - TILE_SIZE);
@@ -126,8 +91,8 @@ void main()
   float nearestEdgeDistance = min(xDist, zDist);
   float secondNearestEdgeDistance = max(xDist, zDist);
   float fogDistance = nearestEdgeDistance - FOG_CORNER_ROUNDING * TILE_SIZE *
-  max(0.f, (nearestEdgeDistance + FOG_CORNER_ROUNDING_SQUARED) /
-  (secondNearestEdgeDistance + FOG_CORNER_ROUNDING_SQUARED));
+      max(0.f, (nearestEdgeDistance + FOG_CORNER_ROUNDING_SQUARED) /
+             (secondNearestEdgeDistance + FOG_CORNER_ROUNDING_SQUARED));
 
   fogAmount = fogFactorLinear(fogDistance, 0, fogDepth * TILE_SIZE) * useFog;
 }
